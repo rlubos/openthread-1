@@ -40,6 +40,8 @@
 #include "common/extension.hpp"
 #include "common/new.hpp"
 
+#if OPENTHREAD_ENABLE_VENDOR_EXTENSION
+
 namespace ot {
 namespace Extension {
 
@@ -94,3 +96,5 @@ void ExtensionBase::SignalNcpInit(Ncp::NcpBase &aNcpBase)
 
 } // namespace Extension
 } // namespace ot
+
+#endif // OPENTHREAD_ENABLE_VENDOR_EXTENSION

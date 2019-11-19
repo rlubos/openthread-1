@@ -155,6 +155,7 @@ const struct Command Interpreter::sCommands[] = {
     {"leaderpartitionid", &Interpreter::ProcessLeaderPartitionId},
     {"leaderweight", &Interpreter::ProcessLeaderWeight},
 #endif
+    {"mac", &Interpreter::ProcessMac},
 #if OPENTHREAD_CONFIG_MAC_FILTER_ENABLE
     {"macfilter", &Interpreter::ProcessMacFilter},
 #endif
@@ -261,16 +262,20 @@ Interpreter::Interpreter(Instance *aInstance)
 #endif // OPENTHREAD_CONFIG_DNS_CLIENT_ENABLE
 }
 
-int Interpreter::Hex2Bin(const char *aHex, uint8_t *aBin, uint16_t aBinLength)
+int Interpreter::Hex2Bin(const char *aHex, uint8_t *aBin, uint16_t aBinLength, bool aAllowTruncate)
 {
     size_t      hexLength = strlen(aHex);
     const char *hexEnd    = aHex + hexLength;
     uint8_t *   cur       = aBin;
     uint8_t     numChars  = hexLength & 1;
     uint8_t     byte      = 0;
+    int         len       = 0;
     int         rval;
 
-    VerifyOrExit((hexLength + 1) / 2 <= aBinLength, rval = -1);
+    if (!aAllowTruncate)
+    {
+        VerifyOrExit((hexLength + 1) / 2 <= aBinLength, rval = -1);
+    }
 
     while (aHex < hexEnd)
     {
@@ -299,6 +304,12 @@ int Interpreter::Hex2Bin(const char *aHex, uint8_t *aBin, uint16_t aBinLength)
             numChars = 0;
             *cur++   = byte;
             byte     = 0;
+            len++;
+
+            if (len == aBinLength)
+            {
+                ExitNow(rval = len);
+            }
         }
         else
         {
@@ -306,7 +317,7 @@ int Interpreter::Hex2Bin(const char *aHex, uint8_t *aBin, uint16_t aBinLength)
         }
     }
 
-    rval = static_cast<int>(cur - aBin);
+    rval = len;
 
 exit:
     return rval;
@@ -449,6 +460,14 @@ void Interpreter::ProcessChannel(int argc, char *argv[])
     if (argc == 0)
     {
         mServer->OutputFormat("%d\r\n", otLinkGetChannel(mInstance));
+    }
+    else if (strcmp(argv[0], "supported") == 0)
+    {
+        mServer->OutputFormat("0x%x\r\n", otPlatRadioGetSupportedChannelMask(mInstance));
+    }
+    else if (strcmp(argv[0], "preferred") == 0)
+    {
+        mServer->OutputFormat("0x%x\r\n", otPlatRadioGetPreferredChannelMask(mInstance));
     }
 #if OPENTHREAD_CONFIG_CHANNEL_MONITOR_ENABLE
     else if (strcmp(argv[0], "monitor") == 0)
@@ -3472,6 +3491,74 @@ exit:
 }
 
 #endif // OPENTHREAD_CONFIG_MAC_FILTER_ENABLE
+
+void Interpreter::ProcessMac(int argc, char *argv[])
+{
+    otError error = OT_ERROR_NONE;
+
+    VerifyOrExit(argc > 0, error = OT_ERROR_INVALID_ARGS);
+
+    if (strcmp(argv[0], "retries") == 0)
+    {
+        error = ProcessMacRetries(argc - 1, argv + 1);
+    }
+    else
+    {
+        error = OT_ERROR_INVALID_ARGS;
+    }
+
+exit:
+    AppendResult(error);
+}
+
+otError Interpreter::ProcessMacRetries(int argc, char *argv[])
+{
+    otError error = OT_ERROR_NONE;
+
+    VerifyOrExit(argc > 0 && argc <= 2, error = OT_ERROR_INVALID_ARGS);
+
+    if (strcmp(argv[0], "direct") == 0)
+    {
+        if (argc == 1)
+        {
+            mServer->OutputFormat("%d\r\n", otLinkGetMaxFrameRetriesDirect(mInstance));
+        }
+        else
+        {
+            unsigned long value;
+
+            SuccessOrExit(error = ParseUnsignedLong(argv[1], value));
+            VerifyOrExit(value <= 0xff, error = OT_ERROR_INVALID_ARGS);
+
+            otLinkSetMaxFrameRetriesDirect(mInstance, static_cast<uint8_t>(value));
+        }
+    }
+#ifdef OPENTHREAD_FTD
+    else if (strcmp(argv[0], "indirect") == 0)
+    {
+        if (argc == 1)
+        {
+            mServer->OutputFormat("%d\r\n", otLinkGetMaxFrameRetriesIndirect(mInstance));
+        }
+        else
+        {
+            unsigned long value;
+
+            SuccessOrExit(error = ParseUnsignedLong(argv[1], value));
+            VerifyOrExit(value <= 0xff, error = OT_ERROR_INVALID_ARGS);
+
+            otLinkSetMaxFrameRetriesIndirect(mInstance, static_cast<uint8_t>(value));
+        }
+    }
+#endif
+    else
+    {
+        error = OT_ERROR_INVALID_ARGS;
+    }
+
+exit:
+    return error;
+}
 
 #if OPENTHREAD_CONFIG_DIAG_ENABLE
 void Interpreter::ProcessDiag(int argc, char *argv[])

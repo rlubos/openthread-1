@@ -106,7 +106,13 @@ jobs:
       os: linux
       compiler: gcc
       script: .travis/script.sh
-    - env: BUILD_TARGET="arm-gcc-8"
+# Disable Arm GCC 8 until slow compile bug is fixed:
+# https://github.com/openthread/openthread/issues/4053
+#    - env: BUILD_TARGET="arm-gcc-8"
+#      os: linux
+#      compiler: gcc
+#      script: .travis/script.sh
+    - env: BUILD_TARGET="arm-gcc-9"
       os: linux
       compiler: gcc
       script: .travis/script.sh

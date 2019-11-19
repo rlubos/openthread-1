@@ -42,6 +42,7 @@
 #include <string.h>
 
 #include "utils/code_utils.h"
+#include "utils/mac_frame.h"
 
 #include <platform-config.h>
 #include <openthread/platform/alarm-micro.h>
@@ -70,7 +71,9 @@
 #define FRAME_PENDING_OFFSET  1            ///< Byte containing pending bit (+1 for frame length byte).
 #define FRAME_PENDING_BIT     (1 << 4)     ///< Frame Pending bit.
 
-// clang-format on
+#if defined(__ICCARM__)
+_Pragma("diag_suppress=Pe167")
+#endif
 
 enum
 {
@@ -78,8 +81,11 @@ enum
     NRF528XX_MIN_CCA_ED_THRESHOLD = -94,  // dBm
 };
 
+// clang-format on
+
 static bool sDisabled;
 
+static otExtAddress sExtAddress;
 static otError      sReceiveError = OT_ERROR_NONE;
 static otRadioFrame sReceivedFrames[NRF_802154_RX_BUFFERS];
 static otRadioFrame sTransmitFrame;
@@ -216,6 +222,11 @@ void otPlatRadioSetPanId(otInstance *aInstance, uint16_t aPanId)
 void otPlatRadioSetExtendedAddress(otInstance *aInstance, const otExtAddress *aExtAddress)
 {
     OT_UNUSED_VARIABLE(aInstance);
+
+    for (size_t i = 0; i < sizeof(*aExtAddress); i++)
+    {
+        sExtAddress.m8[i] = aExtAddress->m8[sizeof(*aExtAddress) - 1 - i];
+    }
 
     nrf_802154_extended_address_set(aExtAddress->m8);
 }
@@ -917,7 +928,7 @@ void nrf_802154_tx_started(const uint8_t *aFrame)
 
     if (notifyFrameUpdated)
     {
-        otPlatRadioFrameUpdated(sInstance, &sTransmitFrame);
+        otMacFrameProcessTransmitAesCcm(&sTransmitFrame, &sExtAddress);
     }
 }
 #endif
