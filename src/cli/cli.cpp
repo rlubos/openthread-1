@@ -132,6 +132,9 @@ const struct Command Interpreter::sCommands[] = {
     {"contextreusedelay", &Interpreter::ProcessContextIdReuseDelay},
 #endif
     {"counters", &Interpreter::ProcessCounters},
+#if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
+    {"csl", &Interpreter::ProcessCsl},
+#endif
     {"dataset", &Interpreter::ProcessDataset},
 #if OPENTHREAD_FTD
     {"delaytimermin", &Interpreter::ProcessDelayTimerMin},
@@ -250,6 +253,8 @@ const struct Command Interpreter::sCommands[] = {
     {"unsecureport", &Interpreter::ProcessUnsecurePort},
     {"version", &Interpreter::ProcessVersion},
 };
+
+Interpreter *Interpreter::sInterpreter = nullptr;
 
 Interpreter::Interpreter(Instance *aInstance)
     : mUserCommands(nullptr)
@@ -522,12 +527,14 @@ void Interpreter::ProcessBackboneRouter(uint8_t aArgsLength, char *aArgs[])
         {
             unsigned long value;
 
-            VerifyOrExit((aArgsLength == 3 || aArgsLength == 4), error = OT_ERROR_INVALID_ARGS);
+            VerifyOrExit(aArgsLength >= 2, error = OT_ERROR_INVALID_COMMAND);
 
             if (strcmp(aArgs[1], "dua") == 0)
             {
                 otIp6InterfaceIdentifier *mlIid = nullptr;
                 otIp6InterfaceIdentifier  iid;
+
+                VerifyOrExit((aArgsLength == 3 || aArgsLength == 4), error = OT_ERROR_INVALID_ARGS);
 
                 SuccessOrExit(error = ParseUnsignedLong(aArgs[2], value));
 
@@ -541,6 +548,11 @@ void Interpreter::ProcessBackboneRouter(uint8_t aArgsLength, char *aArgs[])
                 otBackboneRouterConfigNextDuaRegistrationResponse(mInstance, mlIid, static_cast<uint8_t>(value));
                 ExitNow();
             }
+            else if (strcmp(aArgs[1], "mlr") == 0)
+            {
+                error = ProcessBackboneRouterMgmtMlr(aArgsLength - 2, aArgs + 2);
+                ExitNow();
+            }
         }
 #endif // OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
         SuccessOrExit(error = ProcessBackboneRouterLocal(aArgsLength, aArgs));
@@ -548,11 +560,70 @@ void Interpreter::ProcessBackboneRouter(uint8_t aArgsLength, char *aArgs[])
 
 exit:
 #endif // OPENTHREAD_FTD && OPENTHREAD_CONFIG_BACKBONE_ROUTER_ENABLE
-
     AppendResult(error);
 }
 
 #if OPENTHREAD_FTD && OPENTHREAD_CONFIG_BACKBONE_ROUTER_ENABLE
+
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+otError Interpreter::ProcessBackboneRouterMgmtMlr(uint8_t aArgsLength, char **aArgs)
+{
+    OT_UNUSED_VARIABLE(aArgsLength);
+    OT_UNUSED_VARIABLE(aArgs);
+
+    otError error = OT_ERROR_INVALID_COMMAND;
+
+    VerifyOrExit(aArgsLength >= 1, OT_NOOP);
+
+    if (!strcmp(aArgs[0], "listener"))
+    {
+        if (aArgsLength == 1)
+        {
+            PrintMulticastListenersTable();
+            error = OT_ERROR_NONE;
+        }
+        else if (!strcmp(aArgs[1], "clear"))
+        {
+            otBackboneRouterMulticastListenerClear(mInstance);
+            error = OT_ERROR_NONE;
+        }
+        else if (!strcmp(aArgs[1], "add"))
+        {
+            struct otIp6Address address;
+            unsigned long       value;
+            uint32_t            timeout = 0;
+
+            VerifyOrExit(aArgsLength == 3 || aArgsLength == 4, error = OT_ERROR_INVALID_ARGS);
+
+            SuccessOrExit(error = otIp6AddressFromString(aArgs[2], &address));
+            if (aArgsLength == 4)
+            {
+                SuccessOrExit(error = ParseUnsignedLong(aArgs[3], value));
+                timeout = static_cast<uint32_t>(value);
+            }
+
+            error = otBackboneRouterMulticastListenerAdd(mInstance, &address, timeout);
+        }
+    }
+
+exit:
+    return error;
+}
+
+void Interpreter::PrintMulticastListenersTable(void)
+{
+    otBackboneRouterMulticastListenerIterator iter = OT_BACKBONE_ROUTER_MULTICAST_LISTENER_ITERATOR_INIT;
+    otBackboneRouterMulticastListenerInfo     listenerInfo;
+
+    while (otBackboneRouterMulticastListenerGetNext(mInstance, &iter, &listenerInfo) == OT_ERROR_NONE)
+    {
+        OutputIp6Address(listenerInfo.mAddress);
+        OutputFormat(" %u\r\n", listenerInfo.mTimeout);
+    }
+}
+
+#endif // OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+
 otError Interpreter::ProcessBackboneRouterLocal(uint8_t aArgsLength, char *aArgs[])
 {
     otError                error = OT_ERROR_NONE;
@@ -1280,6 +1351,44 @@ void Interpreter::ProcessCounters(uint8_t aArgsLength, char *aArgs[])
 exit:
     AppendResult(error);
 }
+
+#if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
+void Interpreter::ProcessCsl(uint8_t aArgsLength, char *argv[])
+{
+    otError error = OT_ERROR_INVALID_ARGS;
+
+    if (aArgsLength == 0)
+    {
+        OutputFormat("Channel: %u\r\n", otLinkCslGetChannel(mInstance));
+        OutputFormat("Period: %u(in units of 10 symbols), %ums\r\n", otLinkCslGetPeriod(mInstance),
+                     otLinkCslGetPeriod(mInstance) * kUsPerTenSymbols / 1000);
+        OutputFormat("Timeout: %us\r\n", otLinkCslGetTimeout(mInstance));
+        error = OT_ERROR_NONE;
+    }
+    else if (aArgsLength == 2)
+    {
+        long value;
+
+        SuccessOrExit(error = ParseLong(argv[1], value));
+
+        if (strcmp(argv[0], "channel") == 0)
+        {
+            SuccessOrExit(error = otLinkCslSetChannel(mInstance, static_cast<uint8_t>(value)));
+        }
+        else if (strcmp(argv[0], "period") == 0)
+        {
+            SuccessOrExit(error = otLinkCslSetPeriod(mInstance, static_cast<uint16_t>(value)));
+        }
+        else if (strcmp(argv[0], "timeout") == 0)
+        {
+            SuccessOrExit(error = otLinkCslSetTimeout(mInstance, static_cast<uint32_t>(value)));
+        }
+    }
+
+exit:
+    AppendResult(error);
+}
+#endif // OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
 
 #if OPENTHREAD_FTD
 void Interpreter::ProcessDelayTimerMin(uint8_t aArgsLength, char *aArgs[])
@@ -4679,8 +4788,12 @@ extern "C" void otCliPlatLogv(otLogLevel aLogLevel, otLogRegion aLogRegion, cons
     OT_UNUSED_VARIABLE(aLogLevel);
     OT_UNUSED_VARIABLE(aLogRegion);
 
+    VerifyOrExit(Interpreter::IsInitialized(), OT_NOOP);
+
     Interpreter::GetInterpreter().OutputFormatV(aFormat, aArgs);
     Interpreter::GetInterpreter().OutputFormat("\r\n");
+exit:
+    return;
 }
 
 } // namespace Cli

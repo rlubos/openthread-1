@@ -361,6 +361,7 @@ public:
      * This method returns the number of bytes in the message.
      *
      * @returns The number of bytes in the message.
+     *
      */
     uint16_t GetLength(void) const { return GetMetadata().mLength; }
 
@@ -518,14 +519,15 @@ public:
     /**
      * This method writes bytes to the message.
      *
+     * This method will not resize the message. The given data to write (with @p aLength bytes) MUST fit within the
+     * existing message buffer (from the given offset @p aOffset up to the message's length).
+     *
      * @param[in]  aOffset  Byte offset within the message to begin writing.
      * @param[in]  aLength  Number of bytes to write.
      * @param[in]  aBuf     A pointer to a data buffer.
      *
-     * @returns The number of bytes written.
-     *
      */
-    int Write(uint16_t aOffset, uint16_t aLength, const void *aBuf);
+    void Write(uint16_t aOffset, uint16_t aLength, const void *aBuf);
 
     /**
      * This method copies bytes from one message to another.
@@ -1010,6 +1012,35 @@ private:
      *
      */
     otError ResizeMessage(uint16_t aLength);
+
+private:
+    struct Chunk
+    {
+        const uint8_t *GetData(void) const { return mData; }
+        uint16_t       GetLength(void) const { return mLength; }
+
+        const uint8_t *mData;   // Pointer to start of chunk data buffer.
+        uint16_t       mLength; // Length of chunk data (in bytes).
+        const Buffer * mBuffer; // Buffer containing the chunk
+    };
+
+    struct WritableChunk : public Chunk
+    {
+        uint8_t *GetData(void) const { return const_cast<uint8_t *>(mData); }
+    };
+
+    void GetFirstChunk(uint16_t aOffset, uint16_t &aLength, Chunk &chunk) const;
+    void GetNextChunk(uint16_t &aLength, Chunk &aChunk) const;
+
+    void GetFirstChunk(uint16_t aOffset, uint16_t &aLength, WritableChunk &aChunk)
+    {
+        const_cast<const Message *>(this)->GetFirstChunk(aOffset, aLength, static_cast<Chunk &>(aChunk));
+    }
+
+    void GetNextChunk(uint16_t &aLength, WritableChunk &aChunk)
+    {
+        const_cast<const Message *>(this)->GetNextChunk(aLength, static_cast<Chunk &>(aChunk));
+    }
 };
 
 /**

@@ -33,6 +33,7 @@ Done
 - [commissioner](README_COMMISSIONER.md)
 - [contextreusedelay](#contextreusedelay)
 - [counters](#counters)
+- [csl](#csl)
 - [dataset](README_DATASET.md)
 - [delaytimermin](#delaytimermin)
 - [diag](#diag)
@@ -138,6 +139,49 @@ known status value:
 
 ```bash
 > bbr mgmt dua 1 2f7c235e5025a2fd
+Done
+```
+
+### bbr mgmt mlr listener
+
+Show the Multicast Listeners.
+
+Only for testing/reference Backbone Router device.
+
+```bash
+> bbr mgmt mlr listener
+ff04:0:0:0:0:0:0:abcd 3534000
+ff04:0:0:0:0:0:0:eeee 3537610
+Done
+```
+
+### bbr mgmt mlr listener add \<ipaddr\> \[\<timeout\>\]
+
+Add a Multicast Listener with a given Ip6 multicast address and timeout (in seconds).
+
+Only for testing/reference Backbone Router device.
+
+```bash
+> bbr mgmt mlr listener add ff04::1
+Done
+> bbr mgmt mlr listener add ff04::2 300
+Done
+> bbr mgmt mlr listener
+ff04:0:0:0:0:0:0:2 261
+ff04:0:0:0:0:0:0:1 3522
+Done
+```
+
+### bbr mgmt mlr listener clear
+
+Removes all the Multicast Listeners.
+
+Only for testing/reference Backbone Router device.
+
+```bash
+> bbr mgmt mlr listener clear
+Done
+> bbr mgmt mlr listener
 Done
 ```
 
@@ -496,6 +540,45 @@ Reset the counter value.
 > counters mac reset
 Done
 > counters mle reset
+Done
+```
+
+### csl
+
+Get the CSL configuration.
+
+```bash
+> csl
+Channel: 11
+Period: 1000 (in units of 10 symbols), 160ms
+Timeout: 1000s
+Done
+```
+
+### csl channel \<channel\>
+
+Set CSL channel.
+
+```bash
+> csl channel 20
+Done
+```
+
+### csl period \<period\>
+
+Set CSL period in units of 10 symbols. Disable CSL by setting this parameter to `0`.
+
+```bash
+> csl period 3000
+Done
+```
+
+### csl timeout \<timeout\>
+
+Set the CSL timeout in seconds.
+
+```bash
+> csl timeout 10
 Done
 ```
 

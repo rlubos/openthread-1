@@ -115,7 +115,20 @@ public:
      * @returns A reference to the interpreter object.
      *
      */
-    static Interpreter &GetInterpreter(void);
+    static Interpreter &GetInterpreter(void)
+    {
+        OT_ASSERT(sInterpreter != nullptr);
+
+        return *sInterpreter;
+    }
+
+    /**
+     * This method returns whether the interpreter is initialized.
+     *
+     * @returns  Whether the interpreter is initialized.
+     *
+     */
+    static bool IsInitialized(void) { return sInterpreter != nullptr; }
 
     /**
      * This method interprets a CLI command.
@@ -236,6 +249,9 @@ public:
      */
     void SetUserCommands(const otCliCommand *aCommands, uint8_t aLength);
 
+protected:
+    static Interpreter *sInterpreter;
+
 private:
     enum
     {
@@ -259,6 +275,10 @@ private:
 
 #if OPENTHREAD_FTD && OPENTHREAD_CONFIG_BACKBONE_ROUTER_ENABLE
     otError ProcessBackboneRouterLocal(uint8_t aArgsLength, char *aArgs[]);
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+    otError ProcessBackboneRouterMgmtMlr(uint8_t aArgsLength, char **aArgs);
+    void    PrintMulticastListenersTable(void);
+#endif
 #endif
 
     void ProcessDomainName(uint8_t aArgsLength, char *aArgs[]);
@@ -291,6 +311,7 @@ private:
     void ProcessContextIdReuseDelay(uint8_t aArgsLength, char *aArgs[]);
 #endif
     void ProcessCounters(uint8_t aArgsLength, char *aArgs[]);
+    void ProcessCsl(uint8_t aArgsLength, char *argv[]);
 #if OPENTHREAD_FTD
     void ProcessDelayTimerMin(uint8_t aArgsLength, char *aArgs[]);
 #endif
